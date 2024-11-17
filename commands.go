@@ -47,6 +47,26 @@ var commandHandlers = map[string]func(s *discordgo.Session, i *discordgo.Interac
 							Timestamp:   time.Now().Format(time.RFC3339),
 						},
 					},
+					Flags: discordgo.MessageFlagsEphemeral,
+				},
+			})
+			if err != nil {
+				log.Error().Msgf("Error responding to interaction: %v", err)
+			}
+			return
+		} else if uri.Query().Get("v") == "" {
+			err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+				Type: discordgo.InteractionResponseChannelMessageWithSource,
+				Data: &discordgo.InteractionResponseData{
+					Embeds: []*discordgo.MessageEmbed{
+						{
+							Title:       "Error",
+							Description: "Please provide a valid YouTube link",
+							Color:       COLOR_ERROR,
+							Timestamp:   time.Now().Format(time.RFC3339),
+						},
+					},
+					Flags: discordgo.MessageFlagsEphemeral,
 				},
 			})
 			if err != nil {
