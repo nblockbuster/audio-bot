@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"net/url"
 	"sync"
 	"time"
 
@@ -12,6 +13,49 @@ import (
 var commandHandlers = map[string]func(s *discordgo.Session, i *discordgo.InteractionCreate){
 	"play": func(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		link := i.ApplicationCommandData().Options[0].StringValue()
+
+		uri, err := url.Parse(link)
+		if err != nil {
+			err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+				Type: discordgo.InteractionResponseChannelMessageWithSource,
+				Data: &discordgo.InteractionResponseData{
+					Embeds: []*discordgo.MessageEmbed{
+						{
+							Title:       "Error",
+							Description: "Could not parse URL",
+							Color:       COLOR_ERROR,
+							Timestamp:   time.Now().Format(time.RFC3339),
+						},
+					},
+				},
+			})
+			if err != nil {
+				log.Error().Msgf("Error responding to interaction: %v", err)
+			}
+			return
+		}
+
+		if uri.Host != "www.youtube.com" && uri.Host != "youtube.com" {
+			err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+				Type: discordgo.InteractionResponseChannelMessageWithSource,
+				Data: &discordgo.InteractionResponseData{
+					Embeds: []*discordgo.MessageEmbed{
+						{
+							Title:       "Error",
+							Description: "Only YouTube links are supported",
+							Color:       COLOR_ERROR,
+							Timestamp:   time.Now().Format(time.RFC3339),
+						},
+					},
+				},
+			})
+			if err != nil {
+				log.Error().Msgf("Error responding to interaction: %v", err)
+			}
+			return
+		}
+
+		stripped_link := fmt.Sprintf("https://www.youtube.com/watch?v=%v", uri.Query().Get("v"))
 
 		// if vc, ok := ActiveVoiceConnections[i.GuildID]; ok {
 		// 	// TODO: queue songs
@@ -115,26 +159,23 @@ var commandHandlers = map[string]func(s *discordgo.Session, i *discordgo.Interac
 		log.Debug().Msgf("Joined voice channel %v", state.ChannelID)
 		// log.Debug().Msgf("%+v", dgv)
 
-		video_info, err := getVideoTitle(link)
+		title, dur, err := getVideoTitle(link)
 		if err != nil {
 			log.Error().Msgf("Error getting video title: %v", err)
 			return
 		}
 
-		log.Debug().Str("guild_id", dgv.GuildID).Bool("already_connected", false).Msgf("Playing video: %v (%v)", video_info.Snippet.Title, video_info.ContentDetails.Duration)
+		log.Debug().Str("guild_id", dgv.GuildID).Bool("already_connected", false).Msgf("Playing video: %v (%v)", title, dur)
 
 		err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
 				Embeds: []*discordgo.MessageEmbed{
 					{
-						Title:       "Now Playing", // TODO: enqueue songs
-						Description: fmt.Sprintf("[%v](%v)", video_info.Snippet.Title, fmt.Sprintf("https://www.youtube.com/watch?v=%v", video_info.Id)),
+						Title:       "Now Playing",
+						Description: fmt.Sprintf("[%v](%v)", title, stripped_link),
 						Color:       COLOR_OK,
 						Timestamp:   time.Now().Format(time.RFC3339),
-						// Image: &discordgo.MessageEmbedImage{
-						// 	URL: video_info.Snippet.Thumbnails.Maxres.Url,
-						// },
 					},
 				},
 			},
@@ -143,7 +184,7 @@ var commandHandlers = map[string]func(s *discordgo.Session, i *discordgo.Interac
 			log.Error().Msgf("Error responding to interaction: %v", err)
 		}
 
-		go PlayYoutubeID(dgv, link)
+		go PlayYoutubeID(dgv, stripped_link)
 	},
 	"stop": func(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		StateMutex.RLock()
@@ -215,9 +256,9 @@ var commandHandlers = map[string]func(s *discordgo.Session, i *discordgo.Interac
 				Data: &discordgo.InteractionResponseData{
 					Embeds: []*discordgo.MessageEmbed{
 						{
-							Title:       "Disconnected",
-							Color:       COLOR_OK,
-							Timestamp:   time.Now().Format(time.RFC3339),
+							Title:     "Disconnected",
+							Color:     COLOR_OK,
+							Timestamp: time.Now().Format(time.RFC3339),
 						},
 					},
 					Flags: discordgo.MessageFlagsEphemeral,

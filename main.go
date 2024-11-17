@@ -43,7 +43,6 @@ func main() {
 	}
 	time.Local = loc
 
-	// Connect to Discord
 	s, err := discordgo.New("Bot " + os.Getenv("DISCORD_TOKEN"))
 	if err != nil {
 		log.Error().Msgf("Error creating Discord session: %v", err)
@@ -56,7 +55,6 @@ func main() {
 		log.Info().Msgf("Logged in as: %v#%v", s.State.User.Username, s.State.User.Discriminator)
 	})
 
-	// Open Websocket
 	err = s.Open()
 	if err != nil {
 		log.Error().Msgf("Error opening connection to Discord: %v", err)
