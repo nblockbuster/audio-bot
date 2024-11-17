@@ -37,7 +37,7 @@ func getVideoTitle(link string) (string, *time.Duration, error) {
 		return "", nil, fmt.Errorf("no video found with ID %v", link)
 	}
 
-	dur, err := time.ParseDuration(response.Items[0].ContentDetails.Duration)
+	dur, err := time.ParseDuration(response.Items[0].ContentDetails.Duration[2:])
 	if err != nil {
 		log.Err(err).Msg("Error parsing content duration")
 	}
