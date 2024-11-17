@@ -5,9 +5,10 @@ WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
 COPY *.go ./
-RUN apk add tar
 
+RUN apk add tar
 RUN apk add build-base
+RUN apk add --no-cache yt-dlp
 
 RUN CGO_ENABLED=1 GOOS=linux go build -o /audio-bot
 CMD ["/audio-bot"]
