@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/rs/zerolog/log"
@@ -37,7 +38,7 @@ func getVideoTitle(link string) (string, *time.Duration, error) {
 		return "", nil, fmt.Errorf("no video found with ID %v", link)
 	}
 
-	dur, err := time.ParseDuration(response.Items[0].ContentDetails.Duration[2:])
+	dur, err := time.ParseDuration(strings.ToLower(response.Items[0].ContentDetails.Duration[2:]))
 	if err != nil {
 		log.Err(err).Msg("Error parsing content duration")
 	}
