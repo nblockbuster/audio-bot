@@ -216,7 +216,6 @@ var commandHandlers = map[string]func(s *discordgo.Session, i *discordgo.Interac
 					Embeds: []*discordgo.MessageEmbed{
 						{
 							Title:       "Disconnected",
-							Description: "Disconnected from voice channel",
 							Color:       COLOR_OK,
 							Timestamp:   time.Now().Format(time.RFC3339),
 						},

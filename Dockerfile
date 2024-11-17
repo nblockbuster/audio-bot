@@ -8,7 +8,7 @@ COPY *.go ./
 
 RUN apk add tar
 RUN apk add build-base
-RUN apk add --no-cache yt-dlp
+RUN apk add yt-dlp
 
 RUN CGO_ENABLED=1 GOOS=linux go build -o /audio-bot
 CMD ["/audio-bot"]
