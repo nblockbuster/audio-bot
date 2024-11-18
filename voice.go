@@ -19,10 +19,6 @@ const (
 	maxBytes  int = (frameSize * 2) * 2 // max size of opus data
 )
 
-var (
-	opusEncoder *gopus.Encoder
-)
-
 func SendPCM(v *discordgo.VoiceConnection, pcm <-chan []int16) {
 	if pcm == nil {
 		log.Error().Msg("PCM channel is nil")
@@ -31,7 +27,7 @@ func SendPCM(v *discordgo.VoiceConnection, pcm <-chan []int16) {
 
 	var err error
 
-	opusEncoder, err = gopus.NewEncoder(frameRate, channels, gopus.Audio)
+	opusEncoder, err := gopus.NewEncoder(frameRate, channels, gopus.Audio)
 
 	if err != nil {
 		log.Error().Err(err).Msg("Error creating opus encoder")

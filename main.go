@@ -69,7 +69,6 @@ func main() {
 	// TODO: implement pausing
 	// TODO: implement resuming
 	// TODO: possibly add multitrack recording support
-	// TODO: play in multiple servers at once
 
 	log.Info().Msg("Bot is now running. Press CTRL-C to exit.")
 

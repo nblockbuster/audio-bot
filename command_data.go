@@ -197,32 +197,6 @@ func playCommand(s *discordgo.Session, i *discordgo.InteractionCreate, link stri
 
 	stripped_link := fmt.Sprintf("https://www.youtube.com/watch?v=%v", uri.Query().Get("v"))
 
-	// TODO: bot needs to handle multiple voice connections in different guilds
-	// this is a hack to prevent the bot from joining multiple voice channels
-	if len(ActiveVoiceConnections) > 0 {
-		for k := range ActiveVoiceConnections {
-			if k != i.GuildID {
-				err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-					Type: discordgo.InteractionResponseChannelMessageWithSource,
-					Data: &discordgo.InteractionResponseData{
-						Embeds: []*discordgo.MessageEmbed{
-							{
-								Title:       "Error",
-								Description: "The bot is already playing music in another voice channel",
-								Color:       COLOR_ERROR,
-							},
-						},
-						Flags: discordgo.MessageFlagsEphemeral,
-					},
-				})
-				if err != nil {
-					log.Error().Msgf("Error responding to interaction: %v", err)
-				}
-				return
-			}
-		}
-	}
-
 	if _, ok := ActiveVoiceConnections[i.GuildID]; ok {
 		StateMutex.RLock()
 		state, ok := StatePerConnection[i.GuildID]
