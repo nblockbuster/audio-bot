@@ -34,13 +34,11 @@ func SendPCM(v *discordgo.VoiceConnection, pcm <-chan []int16) {
 	opusEncoder, err = gopus.NewEncoder(frameRate, channels, gopus.Audio)
 
 	if err != nil {
-		// OnError("NewEncoder Error", err)
 		log.Error().Err(err).Msg("Error creating opus encoder")
 		return
 	}
 
 	for {
-		// read pcm from chan, exit if channel is closed.
 		recv, ok := <-pcm
 		if !ok {
 			log.Info().Msg("PCM channel closed")
@@ -51,7 +49,6 @@ func SendPCM(v *discordgo.VoiceConnection, pcm <-chan []int16) {
 		StateMutex.RUnlock()
 		recv = adjustVolume(recv, volume)
 
-		// try encoding pcm frame with Opus
 		opus, err := opusEncoder.Encode(recv, frameSize, maxBytes)
 		if err != nil {
 			log.Error().Err(err).Msg("Error encoding opus data")
@@ -60,16 +57,13 @@ func SendPCM(v *discordgo.VoiceConnection, pcm <-chan []int16) {
 
 		if !v.Ready || v.OpusSend == nil {
 			log.Error().Msgf("Discordgo not ready for opus packets. %+v : %+v", v.Ready, v.OpusSend)
-			// Sending errors here might not be suited
 			return
 		}
-		// send encoded opus data to the sendOpus channel
 		v.OpusSend <- opus
 	}
 }
 
 func terminateProcesses(ytdlp, ffmpeg *exec.Cmd) {
-	// log.Debug().Msg("Terminating processes")
 	if ytdlp != nil && ytdlp.Process != nil {
 		ytdlp.Process.Kill()
 	}
@@ -103,12 +97,6 @@ func PlayYoutubeID(v *discordgo.VoiceConnection, id string) {
 			terminateProcesses(ytdlp, ffmpeg)
 			return nil, nil, nil, nil, nil, err
 		}
-
-		// go func() {
-		// 	ytdlp.Wait()
-		// 	ffmpeg.Wait()
-		// }()
-
 		return ytdlp, ffmpeg, ytpipe, ffmpegout, ffmpegin, nil
 	}
 
@@ -120,15 +108,25 @@ func PlayYoutubeID(v *discordgo.VoiceConnection, id string) {
 
 	exit_loop := false
 
+	err = v.Speaking(true)
+	if err != nil {
+		log.Error().Err(err).Msg("Couldn't set speaking")
+	}
+
+	defer func() {
+		err := v.Speaking(false)
+		if err != nil {
+			log.Error().Err(err).Msg("Couldn't stop speaking")
+		}
+	}()
+
 	for {
 		ffmpegbuf := bufio.NewReaderSize(ffmpegout, 65536)
 
-		// Pipe data from yt-dlp to ffmpeg
 		go func() {
 			for {
 				buf := make([]byte, 65536)
 				read, err := ytpipe.Read(buf)
-				//log.Debug().Msgf("yt-dlp read %d bytes", read)
 				if read == 0 {
 					ffmpegin.Close()
 					break
@@ -145,21 +143,6 @@ func PlayYoutubeID(v *discordgo.VoiceConnection, id string) {
 					log.Warn().Err(err).Msg("Error writing data to ffmpeg")
 					break
 				}
-				//log.Debug().Msgf("ffmpeg wrote %d bytes", wrote)
-			}
-		}()
-
-		// Send "speaking" packet over the voice websocket
-		err = v.Speaking(true)
-		if err != nil {
-			log.Error().Err(err).Msg("Couldn't set speaking")
-		}
-
-		// Send "not speaking" packet over the websocket when finished
-		defer func() {
-			err := v.Speaking(false)
-			if err != nil {
-				log.Error().Err(err).Msg("Couldn't stop speaking")
 			}
 		}()
 
@@ -196,7 +179,6 @@ func PlayYoutubeID(v *discordgo.VoiceConnection, id string) {
 				if err != nil {
 					log.Warn().Err(err).Msg("ffmpeg exited with error")
 				}
-				// log.Debug().Msg("ffmpeg done")
 
 				if exit_loop {
 					return
@@ -207,7 +189,6 @@ func PlayYoutubeID(v *discordgo.VoiceConnection, id string) {
 				StateMutex.RUnlock()
 
 				if ok && state.loop_forever {
-					//log.Debug().Msg("term loop")
 					terminateProcesses(ytdlp, ffmpeg)
 					ytdlp, ffmpeg, ytpipe, ffmpegout, ffmpegin, err = startProcesses()
 					if err != nil {
@@ -219,7 +200,6 @@ func PlayYoutubeID(v *discordgo.VoiceConnection, id string) {
 						for {
 							buf := make([]byte, 65536)
 							read, err := ytpipe.Read(buf)
-							//log.Debug().Msgf("yt-dlp read %d bytes", read)
 							if read == 0 {
 								ffmpegin.Close()
 								break
@@ -236,7 +216,6 @@ func PlayYoutubeID(v *discordgo.VoiceConnection, id string) {
 								log.Warn().Err(err).Msg("Error writing data to ffmpeg")
 								break
 							}
-							//log.Debug().Msgf("ffmpeg wrote %d bytes", wrote)
 						}
 					}()
 				} else {
@@ -260,7 +239,6 @@ func PlayYoutubeID(v *discordgo.VoiceConnection, id string) {
 				return
 			}
 
-			// Send received PCM to the sendPCM channel
 			select {
 			case send <- audiobuf:
 			case <-closea:

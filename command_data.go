@@ -227,7 +227,7 @@ func playCommand(s *discordgo.Session, i *discordgo.InteractionCreate, link stri
 		StateMutex.RLock()
 		state, ok := StatePerConnection[i.GuildID]
 		StateMutex.RUnlock()
-		log.Debug().Msgf("State: %+v", state)
+		// log.Debug().Msgf("State: %+v", state)
 		if ok {
 			state.stop = true
 			StateMutex.Lock()
@@ -333,15 +333,14 @@ func searchCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
 
 	options := make([]discordgo.SelectMenuOption, 0)
 	for _, v := range results {
-		// unicode can be in here, e.g. &#39
-		title := html.UnescapeString(v.Snippet.Title)
+		title := html.UnescapeString(v.Snippet.Localized.Title)
 		if len(title) > 100 {
 			title = title[:100]
 		}
 
 		options = append(options, discordgo.SelectMenuOption{
 			Label: title,
-			Value: v.Id.VideoId,
+			Value: v.Id,
 		})
 	}
 
