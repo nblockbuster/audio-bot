@@ -18,6 +18,7 @@ func getVideoTitle(link string) (string, *time.Duration, error) {
 	service, err := youtube.NewService(context.Background(), option.WithAPIKey(os.Getenv("YOUTUBE_API_KEY")))
 	if err != nil {
 		log.Err(err).Msg("Error creating new YouTube client")
+		return "", nil, err
 	}
 
 	// get the video ID from the URL
@@ -32,6 +33,7 @@ func getVideoTitle(link string) (string, *time.Duration, error) {
 	response, err := call.Do()
 	if err != nil {
 		log.Err(err).Msg("Error making API call to YouTube")
+		return "", nil, err
 	}
 
 	if len(response.Items) == 0 {
@@ -41,7 +43,25 @@ func getVideoTitle(link string) (string, *time.Duration, error) {
 	dur, err := time.ParseDuration(strings.ToLower(response.Items[0].ContentDetails.Duration[2:]))
 	if err != nil {
 		log.Err(err).Msg("Error parsing content duration")
+		return "", nil, err
 	}
 
 	return response.Items[0].Snippet.Localized.Title, &dur, nil
+}
+
+func searchYouTube(query string) ([]*youtube.SearchResult, error) {
+	service, err := youtube.NewService(context.Background(), option.WithAPIKey(os.Getenv("YOUTUBE_API_KEY")))
+	if err != nil {
+		log.Err(err).Msg("Error creating new YouTube client")
+		return nil, err
+	}
+
+	call := service.Search.List([]string{"id", "snippet"}).Q(query).Type("video").MaxResults(5)
+	response, err := call.Do()
+	if err != nil {
+		log.Err(err).Msg("Error making API call to YouTube")
+		return nil, err
+	}
+
+	return response.Items, nil
 }

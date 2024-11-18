@@ -64,12 +64,12 @@ func main() {
 	addCommands(s)
 	addComponents(s)
 
-	// TODO: implement searching for songs
 	// TODO: implement queueing
 	// TODO: implement skipping
 	// TODO: implement pausing
 	// TODO: implement resuming
 	// TODO: possibly add multitrack recording support
+	// TODO: play in multiple servers at once
 
 	log.Info().Msg("Bot is now running. Press CTRL-C to exit.")
 
