@@ -24,9 +24,6 @@ var commandHandlers = map[string]func(s *discordgo.Session, i *discordgo.Interac
 	"volume": func(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		volumeCommand(s, i)
 	},
-	"search": func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-		searchCommand(s, i)
-	},
 }
 
 var componentHandlers = map[string]func(s *discordgo.Session, i *discordgo.InteractionCreate){
@@ -42,8 +39,8 @@ var commands = []*discordgo.ApplicationCommand{
 		Options: []*discordgo.ApplicationCommandOption{
 			{
 				Type:        discordgo.ApplicationCommandOptionString,
-				Name:        "link",
-				Description: "YouTube video link",
+				Name:        "query",
+				Description: "YouTube video link or search query",
 				Required:    true,
 			},
 		},
@@ -68,18 +65,6 @@ var commands = []*discordgo.ApplicationCommand{
 				Type:        discordgo.ApplicationCommandOptionNumber,
 				Name:        "volume",
 				Description: "Volume (0-100)",
-				Required:    true,
-			},
-		},
-	},
-	{
-		Name:        "search",
-		Description: "Search for a song on YouTube",
-		Options: []*discordgo.ApplicationCommandOption{
-			{
-				Type:        discordgo.ApplicationCommandOptionString,
-				Name:        "query",
-				Description: "Search query",
 				Required:    true,
 			},
 		},

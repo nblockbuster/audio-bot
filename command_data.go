@@ -156,18 +156,57 @@ func playCommand(s *discordgo.Session, i *discordgo.InteractionCreate, link stri
 	}
 
 	if uri.Host != "www.youtube.com" && uri.Host != "youtube.com" {
-		err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		query := i.ApplicationCommandData().Options[0].StringValue()
+		results, err := searchYouTube(query)
+		if err != nil {
+			log.Error().Msgf("Error searching YouTube: %v", err)
+			err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+				Type: discordgo.InteractionResponseChannelMessageWithSource,
+				Data: &discordgo.InteractionResponseData{
+					Embeds: []*discordgo.MessageEmbed{
+						{
+							Title:       "Error",
+							Description: "Error searching YouTube",
+							Color:       COLOR_ERROR,
+							Timestamp:   time.Now().Format(time.RFC3339),
+						},
+					},
+					Flags: discordgo.MessageFlagsEphemeral,
+				},
+			})
+			if err != nil {
+				log.Error().Msgf("Error responding to interaction: %v", err)
+			}
+			return
+		}
+
+		options := make([]discordgo.SelectMenuOption, 0)
+		for _, v := range results {
+			title := html.UnescapeString(v.Snippet.Localized.Title)
+			if len(title) > 100 {
+				title = title[:100]
+			}
+
+			options = append(options, discordgo.SelectMenuOption{
+				Label: title,
+				Value: v.Id,
+			})
+		}
+
+		err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
-				Embeds: []*discordgo.MessageEmbed{
-					{
-						Title:       "Error",
-						Description: "Only YouTube links are supported",
-						Color:       COLOR_ERROR,
-						Timestamp:   time.Now().Format(time.RFC3339),
+				Components: []discordgo.MessageComponent{
+					discordgo.ActionsRow{
+						Components: []discordgo.MessageComponent{
+							&discordgo.SelectMenu{
+								Placeholder: "Select a video",
+								CustomID:    "select_searched",
+								Options:     options,
+							},
+						},
 					},
 				},
-				Flags: discordgo.MessageFlagsEphemeral,
 			},
 		})
 		if err != nil {
@@ -201,7 +240,7 @@ func playCommand(s *discordgo.Session, i *discordgo.InteractionCreate, link stri
 		StateMutex.RLock()
 		state, ok := StatePerConnection[i.GuildID]
 		StateMutex.RUnlock()
-		// log.Debug().Msgf("State: %+v", state)
+
 		if ok {
 			state.stop = true
 			StateMutex.Lock()
@@ -278,65 +317,6 @@ func playCommand(s *discordgo.Session, i *discordgo.InteractionCreate, link stri
 	}
 
 	go PlayYoutubeID(dgv, stripped_link)
-}
-
-func searchCommand(s *discordgo.Session, i *discordgo.InteractionCreate) {
-	query := i.ApplicationCommandData().Options[0].StringValue()
-	results, err := searchYouTube(query)
-	if err != nil {
-		log.Error().Msgf("Error searching YouTube: %v", err)
-		err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseChannelMessageWithSource,
-			Data: &discordgo.InteractionResponseData{
-				Embeds: []*discordgo.MessageEmbed{
-					{
-						Title:       "Error",
-						Description: "Error searching YouTube",
-						Color:       COLOR_ERROR,
-						Timestamp:   time.Now().Format(time.RFC3339),
-					},
-				},
-				Flags: discordgo.MessageFlagsEphemeral,
-			},
-		})
-		if err != nil {
-			log.Error().Msgf("Error responding to interaction: %v", err)
-		}
-		return
-	}
-
-	options := make([]discordgo.SelectMenuOption, 0)
-	for _, v := range results {
-		title := html.UnescapeString(v.Snippet.Localized.Title)
-		if len(title) > 100 {
-			title = title[:100]
-		}
-
-		options = append(options, discordgo.SelectMenuOption{
-			Label: title,
-			Value: v.Id,
-		})
-	}
-
-	err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseChannelMessageWithSource,
-		Data: &discordgo.InteractionResponseData{
-			Components: []discordgo.MessageComponent{
-				discordgo.ActionsRow{
-					Components: []discordgo.MessageComponent{
-						&discordgo.SelectMenu{
-							Placeholder: "Select a video",
-							CustomID:    "select_searched",
-							Options:     options,
-						},
-					},
-				},
-			},
-		},
-	})
-	if err != nil {
-		log.Error().Msgf("Error responding to interaction: %v", err)
-	}
 }
 
 func playSearchedTrack(s *discordgo.Session, i *discordgo.InteractionCreate) {

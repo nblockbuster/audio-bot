@@ -12,6 +12,8 @@ import (
 	"layeh.com/gopus"
 )
 
+// TODO: Bot eventually leaves and rejoins the voice channel if it's playing in a different server as well
+
 const (
 	channels  int = 2                   // 1 for mono, 2 for stereo
 	frameRate int = 48000               // audio sampling rate
@@ -37,6 +39,11 @@ func SendPCM(v *discordgo.VoiceConnection, pcm <-chan []int16) {
 	for {
 		recv, ok := <-pcm
 		if !ok {
+			log.Info().Msg("PCM channel closed")
+			err := v.Speaking(false)
+			if err != nil {
+				log.Error().Err(err).Msg("Couldn't stop speaking")
+			}
 			log.Info().Msg("PCM channel closed")
 			return
 		}
@@ -109,13 +116,6 @@ func PlayYoutubeID(v *discordgo.VoiceConnection, id string) {
 		log.Error().Err(err).Msg("Couldn't set speaking")
 	}
 
-	defer func() {
-		err := v.Speaking(false)
-		if err != nil {
-			log.Error().Err(err).Msg("Couldn't stop speaking")
-		}
-	}()
-
 	for {
 		ffmpegbuf := bufio.NewReaderSize(ffmpegout, 65536)
 
@@ -157,11 +157,11 @@ func PlayYoutubeID(v *discordgo.VoiceConnection, id string) {
 				state, ok := StatePerConnection[v.GuildID]
 				StateMutex.RUnlock()
 				if ok && state.stop {
-					// log.Debug().Msg("stop")
 					send = nil
 					terminateProcesses(ytdlp, ffmpeg)
 					exit_loop = true
 					state.stop = false
+
 					StateMutex.Lock()
 					StatePerConnection[v.GuildID] = state
 					StateMutex.Unlock()
@@ -174,6 +174,10 @@ func PlayYoutubeID(v *discordgo.VoiceConnection, id string) {
 				err := ffmpeg.Wait()
 				if err != nil {
 					log.Warn().Err(err).Msg("ffmpeg exited with error")
+				}
+				err = v.Speaking(false)
+				if err != nil {
+					log.Warn().Err(err).Msg("Couldn't stop speaking")
 				}
 
 				if exit_loop {
