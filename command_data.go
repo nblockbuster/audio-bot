@@ -240,7 +240,7 @@ func playCommand(s *discordgo.Session, i *discordgo.InteractionCreate, link stri
 		return
 	}
 
-	dgv, err := s.ChannelVoiceJoin(i.GuildID, state.ChannelID, false, false)
+	dgv, err := s.ChannelVoiceJoin(i.GuildID, state.ChannelID, false, true)
 	if err != nil {
 		log.Error().Msgf("Error joining voice channel: %v", err)
 		return
