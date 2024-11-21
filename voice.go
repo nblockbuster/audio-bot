@@ -21,13 +21,15 @@ const (
 	maxBytes  int = (frameSize * 2) * 2 // max size of opus data
 )
 
+// var (
+// 	queue = make(map[string][]string)
+// )
+
 func SendPCM(v *discordgo.VoiceConnection, pcm <-chan []int16) {
 	if pcm == nil {
 		log.Error().Msg("PCM channel is nil")
 		return
 	}
-
-	var err error
 
 	opusEncoder, err := gopus.NewEncoder(frameRate, channels, gopus.Audio)
 
@@ -50,7 +52,7 @@ func SendPCM(v *discordgo.VoiceConnection, pcm <-chan []int16) {
 		StateMutex.RLock()
 		volume := StatePerConnection[v.GuildID].volume
 		StateMutex.RUnlock()
-		recv = adjustVolume(recv, volume)
+		recv = SetGain(recv, volume)
 
 		opus, err := opusEncoder.Encode(recv, frameSize, maxBytes)
 		if err != nil {
@@ -75,9 +77,9 @@ func terminateProcesses(ytdlp, ffmpeg *exec.Cmd) {
 	}
 }
 
-func PlayYoutubeID(v *discordgo.VoiceConnection, id string) {
-	startProcesses := func() (*exec.Cmd, *exec.Cmd, io.ReadCloser, io.ReadCloser, io.WriteCloser, error) {
-		ytdlp := exec.Command("yt-dlp", id, "-o", "-")
+func PlayYoutubeID(v *discordgo.VoiceConnection, link string) {
+	startProcesses := func(link string) (*exec.Cmd, *exec.Cmd, io.ReadCloser, io.ReadCloser, io.WriteCloser, error) {
+		ytdlp := exec.Command("yt-dlp", link, "-o", "-")
 		ytpipe, err := ytdlp.StdoutPipe()
 		if err != nil {
 			return nil, nil, nil, nil, nil, err
@@ -103,7 +105,24 @@ func PlayYoutubeID(v *discordgo.VoiceConnection, id string) {
 		return ytdlp, ffmpeg, ytpipe, ffmpegout, ffmpegin, nil
 	}
 
-	ytdlp, ffmpeg, ytpipe, ffmpegout, ffmpegin, err := startProcesses()
+	// q, ok := queue[v.GuildID]
+	// if !ok {
+	// 	log.Error().Msg("Queue not found")
+	// 	return
+	// }
+	// if len(q) == 0 {
+	// 	log.Error().Msg("Queue is empty")
+	// 	return
+	// }
+
+	// id := q[0]
+	// if len(q) > 1 {
+	// 	queue[v.GuildID] = q[1:]
+	// } else {
+	// 	delete(queue, v.GuildID)
+	// }
+
+	ytdlp, ffmpeg, ytpipe, ffmpegout, ffmpegin, err := startProcesses(link)
 	if err != nil {
 		log.Error().Err(err).Msg("Error starting processes")
 		return
@@ -150,7 +169,6 @@ func PlayYoutubeID(v *discordgo.VoiceConnection, id string) {
 			closea <- true
 		}()
 
-		// /stop command
 		go func() {
 			for {
 				StateMutex.RLock()
@@ -190,7 +208,7 @@ func PlayYoutubeID(v *discordgo.VoiceConnection, id string) {
 
 				if ok && state.loop_forever {
 					terminateProcesses(ytdlp, ffmpeg)
-					ytdlp, ffmpeg, ytpipe, ffmpegout, ffmpegin, err = startProcesses()
+					ytdlp, ffmpeg, ytpipe, ffmpegout, ffmpegin, err = startProcesses(link)
 					if err != nil {
 						log.Error().Err(err).Msg("Error restarting processes")
 						return
@@ -232,9 +250,7 @@ func PlayYoutubeID(v *discordgo.VoiceConnection, id string) {
 			audiobuf := make([]int16, frameSize*channels)
 			err = binary.Read(ffmpegbuf, binary.LittleEndian, &audiobuf)
 			if err != nil {
-				if err.Error() != "read |0: file already closed" {
-					log.Error().Err(err).Msg("Error reading from ffmpeg stdout")
-				}
+				log.Error().Err(err).Msg("Error reading from ffmpeg stdout")
 				terminateProcesses(ytdlp, ffmpeg)
 				return
 			}
@@ -247,18 +263,4 @@ func PlayYoutubeID(v *discordgo.VoiceConnection, id string) {
 			}
 		}
 	}
-}
-
-func adjustVolume(s16_data []int16, amt float64) []int16 {
-	for i := range s16_data {
-		sample := float64(s16_data[i])
-		sample *= amt
-		if sample > 32767 {
-			sample = 32767
-		} else if sample < -32768 {
-			sample = -32768
-		}
-		s16_data[i] = int16(sample)
-	}
-	return s16_data
 }

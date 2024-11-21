@@ -316,6 +316,13 @@ func playCommand(s *discordgo.Session, i *discordgo.InteractionCreate, link stri
 		log.Error().Msgf("Error responding to interaction: %v", err)
 	}
 
+	// q, ok := queue[dgv.GuildID]
+	// if !ok {
+	// 	q = make([]string, 0)
+	// }
+	// q = append(q, stripped_link)
+	// queue[dgv.GuildID] = q
+
 	go PlayYoutubeID(dgv, stripped_link)
 }
 

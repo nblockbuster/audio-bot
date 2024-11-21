@@ -68,7 +68,7 @@ func main() {
 	// TODO: implement skipping
 	// TODO: implement pausing
 	// TODO: implement resuming
-	// TODO: possibly add multitrack recording support
+	// TODO: add multitrack recording support
 
 	log.Info().Msg("Bot is now running. Press CTRL-C to exit.")
 
