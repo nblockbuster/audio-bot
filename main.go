@@ -5,7 +5,6 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
-	"time"
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/rs/zerolog"
@@ -37,11 +36,6 @@ func main() {
 	var err error
 
 	log.Logger = zerolog.New(zerolog.ConsoleWriter{Out: os.Stderr}).With().Timestamp().Logger()
-	loc, err := time.LoadLocation("America/New_York")
-	if err != nil {
-		log.Panic().Err(err).Msg("")
-	}
-	time.Local = loc
 
 	s, err := discordgo.New("Bot " + os.Getenv("DISCORD_TOKEN"))
 	if err != nil {
