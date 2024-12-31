@@ -21,9 +21,9 @@ const (
 	maxBytes  int = (frameSize * 2) * 2 // max size of opus data
 )
 
-// var (
-// 	queue = make(map[string][]string)
-// )
+var (
+	queue = make(map[string][]string)
+)
 
 func SendPCM(v *discordgo.VoiceConnection, pcm <-chan []int16) {
 	if pcm == nil {
@@ -77,9 +77,9 @@ func terminateProcesses(ytdlp, ffmpeg *exec.Cmd) {
 	}
 }
 
-func PlayYoutubeID(v *discordgo.VoiceConnection, link string) {
-	startProcesses := func(link string) (*exec.Cmd, *exec.Cmd, io.ReadCloser, io.ReadCloser, io.WriteCloser, error) {
-		ytdlp := exec.Command("yt-dlp", link, "-o", "-")
+func PlayYoutubeID(v *discordgo.VoiceConnection, play_id string) {
+	startProcesses := func(id string) (*exec.Cmd, *exec.Cmd, io.ReadCloser, io.ReadCloser, io.WriteCloser, error) {
+		ytdlp := exec.Command("yt-dlp", id, "-o", "-")
 		ytpipe, err := ytdlp.StdoutPipe()
 		if err != nil {
 			return nil, nil, nil, nil, nil, err
@@ -105,24 +105,7 @@ func PlayYoutubeID(v *discordgo.VoiceConnection, link string) {
 		return ytdlp, ffmpeg, ytpipe, ffmpegout, ffmpegin, nil
 	}
 
-	// q, ok := queue[v.GuildID]
-	// if !ok {
-	// 	log.Error().Msg("Queue not found")
-	// 	return
-	// }
-	// if len(q) == 0 {
-	// 	log.Error().Msg("Queue is empty")
-	// 	return
-	// }
-
-	// id := q[0]
-	// if len(q) > 1 {
-	// 	queue[v.GuildID] = q[1:]
-	// } else {
-	// 	delete(queue, v.GuildID)
-	// }
-
-	ytdlp, ffmpeg, ytpipe, ffmpegout, ffmpegin, err := startProcesses(link)
+	ytdlp, ffmpeg, ytpipe, ffmpegout, ffmpegin, err := startProcesses(play_id)
 	if err != nil {
 		log.Error().Err(err).Msg("Error starting processes")
 		return
@@ -208,7 +191,7 @@ func PlayYoutubeID(v *discordgo.VoiceConnection, link string) {
 
 				if ok && state.loop_forever {
 					terminateProcesses(ytdlp, ffmpeg)
-					ytdlp, ffmpeg, ytpipe, ffmpegout, ffmpegin, err = startProcesses(link)
+					ytdlp, ffmpeg, ytpipe, ffmpegout, ffmpegin, err = startProcesses(play_id)
 					if err != nil {
 						log.Error().Err(err).Msg("Error restarting processes")
 						return
