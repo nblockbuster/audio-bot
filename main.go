@@ -51,6 +51,9 @@ func main() {
 
 	s.AddHandler(func(s *discordgo.Session, v *discordgo.VoiceStateUpdate) {
 		log.Debug().Msgf("%+v", v.VoiceState)
+		if v.UserID != s.State.User.ID {
+			return
+		}
 		VCMutex.Lock()
 		vc, ok := ActiveVoiceConnections[v.GuildID]
 		if ok {
