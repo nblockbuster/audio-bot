@@ -236,17 +236,33 @@ func playCommand(s *discordgo.Session, i *discordgo.InteractionCreate, link stri
 
 	stripped_link := fmt.Sprintf("https://www.youtube.com/watch?v=%v", uri.Query().Get("v"))
 
-	if _, ok := ActiveVoiceConnections[i.GuildID]; ok {
+	if vc, ok := ActiveVoiceConnections[i.GuildID]; ok {
 		StateMutex.RLock()
 		state, ok := StatePerConnection[i.GuildID]
 		StateMutex.RUnlock()
-
 		if ok {
-			state.stop = true
-			StateMutex.Lock()
-			StatePerConnection[i.GuildID] = state
-			StateMutex.Unlock()
-			log.Debug().Msg("Stopping current song")
+			if vc.OpusSend != nil {
+				log.Debug().Msg("opus send is not nil")
+			}
+
+			// TODO: I hate this, please me, think of anything else I beg
+			if !state.stop {
+				state.stop = true
+				StateMutex.Lock()
+				StatePerConnection[i.GuildID] = state
+				StateMutex.Unlock()
+				// log.Debug().Msg("Stopping current song")
+				state.stop = false
+				StateMutex.Lock()
+				StatePerConnection[i.GuildID] = state
+				StateMutex.Unlock()
+			} else if state.stop {
+				state.stop = false
+				StateMutex.Lock()
+				StatePerConnection[i.GuildID] = state
+				StateMutex.Unlock()
+				// log.Debug().Msg("UnStopping current song")
+			}
 		}
 	}
 
@@ -315,13 +331,6 @@ func playCommand(s *discordgo.Session, i *discordgo.InteractionCreate, link stri
 	if err != nil {
 		log.Error().Msgf("Error responding to interaction: %v", err)
 	}
-
-	// q, ok := queue[dgv.GuildID]
-	// if !ok {
-	// 	q = make([]string, 0)
-	// }
-	// q = append(q, stripped_link)
-	// queue[dgv.GuildID] = q
 
 	go PlayYoutubeID(dgv, stripped_link)
 }

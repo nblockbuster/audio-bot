@@ -6,6 +6,7 @@ import (
 	"io"
 	"os/exec"
 	"strconv"
+	"time"
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/rs/zerolog/log"
@@ -69,43 +70,56 @@ func SendPCM(v *discordgo.VoiceConnection, pcm <-chan []int16) {
 }
 
 func terminateProcesses(ytdlp, ffmpeg *exec.Cmd) {
+	log.Debug().Msg("killing processes")
 	if ytdlp != nil && ytdlp.Process != nil {
+		log.Debug().Msgf("killing ytdlp %v", ytdlp.Process.Pid)
 		ytdlp.Process.Kill()
+		ytdlp.Process.Release()
 	}
 	if ffmpeg != nil && ffmpeg.Process != nil {
+		log.Debug().Msgf("killing ffmpeg %v", ffmpeg.Process.Pid)
 		ffmpeg.Process.Kill()
+		ffmpeg.Process.Release()
 	}
 }
 
 func PlayYoutubeID(v *discordgo.VoiceConnection, play_id string) {
-	startProcesses := func(id string) (*exec.Cmd, *exec.Cmd, io.ReadCloser, io.ReadCloser, io.WriteCloser, error) {
-		ytdlp := exec.Command("yt-dlp", id, "-o", "-")
-		ytpipe, err := ytdlp.StdoutPipe()
+	var ytdlp *exec.Cmd
+	var ffmpeg *exec.Cmd
+	var ytpipe io.ReadCloser
+	var ffmpegout io.ReadCloser
+	var ffmpegin io.WriteCloser
+
+	startProcesses := func(id string) error {
+		var err error
+
+		ytdlp = exec.Command("yt-dlp", id, "-o", "-")
+		ytpipe, err = ytdlp.StdoutPipe()
 		if err != nil {
-			return nil, nil, nil, nil, nil, err
+			return err
 		}
 
-		ffmpeg := exec.Command("ffmpeg", "-i", "pipe:", "-map", "0", "-map", "-0:v", "-f", "s16le", "-ar", strconv.Itoa(frameRate), "-ac", strconv.Itoa(channels), "pipe:1")
-		ffmpegout, err := ffmpeg.StdoutPipe()
+		ffmpeg = exec.Command("ffmpeg", "-i", "pipe:", "-map", "0", "-map", "-0:v", "-f", "s16le", "-ar", strconv.Itoa(frameRate), "-ac", strconv.Itoa(channels), "pipe:1")
+		ffmpegout, err = ffmpeg.StdoutPipe()
 		if err != nil {
-			return nil, nil, nil, nil, nil, err
+			return err
 		}
-		ffmpegin, err := ffmpeg.StdinPipe()
+		ffmpegin, err = ffmpeg.StdinPipe()
 		if err != nil {
-			return nil, nil, nil, nil, nil, err
+			return err
 		}
 
 		if err := ytdlp.Start(); err != nil {
-			return nil, nil, nil, nil, nil, err
+			return err
 		}
 		if err := ffmpeg.Start(); err != nil {
 			terminateProcesses(ytdlp, ffmpeg)
-			return nil, nil, nil, nil, nil, err
+			return err
 		}
-		return ytdlp, ffmpeg, ytpipe, ffmpegout, ffmpegin, nil
+		return nil
 	}
 
-	ytdlp, ffmpeg, ytpipe, ffmpegout, ffmpegin, err := startProcesses(play_id)
+	err := startProcesses(play_id)
 	if err != nil {
 		log.Error().Err(err).Msg("Error starting processes")
 		return
@@ -123,6 +137,9 @@ func PlayYoutubeID(v *discordgo.VoiceConnection, play_id string) {
 
 		go func() {
 			for {
+				if exit_loop {
+					break
+				}
 				buf := make([]byte, 65536)
 				read, err := ytpipe.Read(buf)
 				if read == 0 {
@@ -154,33 +171,23 @@ func PlayYoutubeID(v *discordgo.VoiceConnection, play_id string) {
 
 		go func() {
 			for {
-				StateMutex.RLock()
+				if exit_loop {
+					break
+				}
+				StateMutex.Lock()
 				state, ok := StatePerConnection[v.GuildID]
-				StateMutex.RUnlock()
 				if ok && state.stop {
-					send = nil
+					log.Debug().Msg("state stop")
 					terminateProcesses(ytdlp, ffmpeg)
 					exit_loop = true
-					state.stop = false
-
-					StateMutex.Lock()
 					StatePerConnection[v.GuildID] = state
-					StateMutex.Unlock()
 				}
+				StateMutex.Unlock()
 			}
 		}()
 
 		go func() {
 			for {
-				err := ffmpeg.Wait()
-				if err != nil {
-					log.Warn().Err(err).Msg("ffmpeg exited with error")
-				}
-				err = v.Speaking(false)
-				if err != nil {
-					log.Warn().Err(err).Msg("Couldn't stop speaking")
-				}
-
 				if exit_loop {
 					return
 				}
@@ -190,52 +197,52 @@ func PlayYoutubeID(v *discordgo.VoiceConnection, play_id string) {
 				StateMutex.RUnlock()
 
 				if ok && state.loop_forever {
-					terminateProcesses(ytdlp, ffmpeg)
-					ytdlp, ffmpeg, ytpipe, ffmpegout, ffmpegin, err = startProcesses(play_id)
-					if err != nil {
-						log.Error().Err(err).Msg("Error restarting processes")
-						return
-					}
-					ffmpegbuf = bufio.NewReaderSize(ffmpegout, 65536)
-					go func() {
-						for {
-							buf := make([]byte, 65536)
-							read, err := ytpipe.Read(buf)
-							if read == 0 {
-								ffmpegin.Close()
-								break
-							}
-							if err != nil {
-								if err == io.EOF {
-									break
-								}
-								log.Error().Err(err).Msg("Error peeking data from yt-dlp")
-								break
-							}
-							_, err = ffmpegin.Write(buf[:read])
-							if err != nil {
-								log.Warn().Err(err).Msg("Error writing data to ffmpeg")
-								break
-							}
+					for {
+						err := ffmpeg.Wait()
+						if err != nil {
+							log.Warn().Err(err).Msg("ffmpeg exited with error")
 						}
-					}()
+						err = v.Speaking(false)
+						if err != nil {
+							log.Warn().Err(err).Msg("Couldn't stop speaking")
+						}
+						if exit_loop || state.stop {
+							break
+						}
+						err = startProcesses(play_id)
+						if err != nil {
+							log.Error().Err(err).Msg("Error restarting processes")
+							return
+						}
+					}
 				} else {
-					break
+					err := ffmpeg.Wait()
+					if err != nil {
+						log.Warn().Err(err).Msg("ffmpeg exited with error")
+					}
+					err = v.Speaking(false)
+					if err != nil {
+						log.Warn().Err(err).Msg("Couldn't stop speaking")
+					}
 				}
 			}
 		}()
 
+		time.Sleep(1 * time.Second)
+
 		// Main playback loop
 		for {
 			if exit_loop {
+				log.Debug().Msg("exitloop")
+				exit_loop = false
+
 				return
 			}
 			audiobuf := make([]int16, frameSize*channels)
 			err = binary.Read(ffmpegbuf, binary.LittleEndian, &audiobuf)
 			if err != nil {
 				log.Error().Err(err).Msg("Error reading from ffmpeg stdout")
-				terminateProcesses(ytdlp, ffmpeg)
-				return
+				break
 			}
 
 			select {

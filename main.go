@@ -49,6 +49,25 @@ func main() {
 		log.Info().Msgf("Logged in as: %v#%v", s.State.User.Username, s.State.User.Discriminator)
 	})
 
+	s.AddHandler(func(s *discordgo.Session, v *discordgo.VoiceStateUpdate) {
+		log.Debug().Msgf("%+v", v.VoiceState)
+		VCMutex.Lock()
+		vc, ok := ActiveVoiceConnections[v.GuildID]
+		if ok {
+			if v.VoiceState.ChannelID == "" && v.BeforeUpdate.ChannelID != "" {
+				StateMutex.Lock()
+				state, ok := StatePerConnection[v.GuildID]
+				if ok {
+					state.stop = true
+					StatePerConnection[v.GuildID] = state
+				}
+				StateMutex.Unlock()
+				vc.Close()
+			}
+		}
+		VCMutex.Unlock()
+	})
+
 	err = s.Open()
 	if err != nil {
 		log.Error().Msgf("Error opening connection to Discord: %v", err)
