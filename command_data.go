@@ -236,37 +236,13 @@ func playCommand(s *discordgo.Session, i *discordgo.InteractionCreate, link stri
 
 	stripped_link := fmt.Sprintf("https://www.youtube.com/watch?v=%v", uri.Query().Get("v"))
 
-	if vc, ok := ActiveVoiceConnections[i.GuildID]; ok {
-		StateMutex.RLock()
-		state, ok := StatePerConnection[i.GuildID]
-		StateMutex.RUnlock()
-		if ok {
-			if vc.OpusSend != nil {
-				log.Debug().Msg("opus send is not nil")
-			}
-
-			// TODO: I hate this, please me, think of anything else I beg
-			if !state.stop {
-				state.stop = true
-				StateMutex.Lock()
-				StatePerConnection[i.GuildID] = state
-				StateMutex.Unlock()
-				// log.Debug().Msg("Stopping current song")
-				state.stop = false
-				StateMutex.Lock()
-				StatePerConnection[i.GuildID] = state
-				StateMutex.Unlock()
-			} else if state.stop {
-				state.stop = false
-				StateMutex.Lock()
-				StatePerConnection[i.GuildID] = state
-				StateMutex.Unlock()
-				// log.Debug().Msg("UnStopping current song")
-			}
-		}
+	StateMutex.Lock()
+	st, ok := StatePerConnection[i.GuildID]
+	if ok {
+		st.stop = true
+		StatePerConnection[i.GuildID] = st
 	}
 
-	StateMutex.Lock()
 	if _, ok := StatePerConnection[i.GuildID]; !ok {
 		StatePerConnection[i.GuildID] = VoiceState{loop_forever: true, stop: false, volume: 1.0}
 	}

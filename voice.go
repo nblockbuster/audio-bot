@@ -84,6 +84,15 @@ func terminateProcesses(ytdlp, ffmpeg *exec.Cmd) {
 }
 
 func PlayYoutubeID(v *discordgo.VoiceConnection, play_id string) {
+
+	StateMutex.Lock()
+	s, ok := StatePerConnection[v.GuildID]
+	if ok {
+		s.stop = false
+		StatePerConnection[v.GuildID] = s
+	}
+	StateMutex.Unlock()
+
 	var is_voice_empty bool
 	var time_voice_empty time.Time
 
@@ -249,7 +258,13 @@ func PlayYoutubeID(v *discordgo.VoiceConnection, play_id string) {
 					continue
 				}
 				var cur_channel_members int
+				if len(g.VoiceStates) == 0 {
+					continue
+				}
 				for _, s := range g.VoiceStates {
+					if s == nil || v == nil || s.Member == nil || s.Member.User == nil {
+						continue
+					}
 					if s.ChannelID == v.ChannelID && s.Member.User.ID != GlobalSession.State.User.ID {
 						cur_channel_members += 1
 					}
@@ -264,6 +279,8 @@ func PlayYoutubeID(v *discordgo.VoiceConnection, play_id string) {
 
 			}
 		}()
+
+		time.Sleep(1 * time.Second)
 
 		// Main playback loop
 		for {

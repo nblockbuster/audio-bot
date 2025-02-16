@@ -20,9 +20,11 @@ type VoiceState struct {
 }
 
 var (
+	// Map of Guild ID -> Voice Connection
 	ActiveVoiceConnections = make(map[string]*discordgo.VoiceConnection)
 	VCMutex                = sync.RWMutex{}
 
+	// Map of Guild ID -> Voice State
 	StatePerConnection = make(map[string]VoiceState)
 	StateMutex         = sync.RWMutex{}
 
